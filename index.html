@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPF Retirement Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f9; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; }
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background-color: #3498db; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }
+        button:hover { background-color: #2980b9; }
+        .results { margin-top: 30px; padding: 20px; background: #eef7ff; border-radius: 5px; display: none; }
+        .result-item { margin-bottom: 10px; font-size: 18px; }
+        .highlight { font-weight: bold; color: #d35400; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CPF Retirement Dashboard</h1>
+            <label for="age">Current Age</label>
+            <input type="number" id="age" placeholder="e.g., 30" max="85" />
+        </div>
+        <div class="input-group">
+            <label for="salary">Monthly Gross Salary ($)</label>
+            <input type="number" id="salary" placeholder="e.g., 5000" />
+        </div>
+        <div class="input-group">
+            <label for="oa">Ordinary Account (OA) Balance ($)</label>
+            <input type="number" id="oa" placeholder="e.g., 180000" />
+        </div>
+        <div class="input-group">
+            <label for="sa">Special Account (SA) Balance ($)</label>
+            <input type="number" id="sa" placeholder="e.g., 90000" />
+        </div>
+        <div class="input-group">
+            <label for="frs">Full Retirement Sum (FRS) Target ($)</label>
+            <input type="number" id="frs" value="220400" />
+        </div>
+        <div class="input-group">
+            <label for="increment">Annual Salary Increment (%)</label>
+            <input type="number" id="increment" placeholder="e.g., 3" />
+        </div>
+        <button onclick="calculateRA()">Calculate RA at 55</button>
+
+        <div id="results" class="results">
+            <h3>Calculation Results:</h3>
+<div class="result-item">Projected Balance (SA): <span id="resSaGrowth" class="highlight">${projectedSa.toLocaleString()}</span></div>
+<div class="result-item">Projected Balance (OA): <span id="resOaGrowth" class="highlight">${projectedOa.toLocaleString()}</span></div>
+<div class="result-item">Retirement Account (RA) at 55: <span id="resRa" class="highlight">0</span></div>
+<div class="result-item">Remaining OA Balance: <span id="resOa" class="highlight">0</span></div>
+<div class="result-item">SA Balance Remaining: <span id="resSa_rem">0 (Closed at 55)</span></div>
+
+<div style="margin-top:20px; padding:15px; background:#f9f9f9; border:1px solid #ddd; font-size:14px; color:#666;">
+    <strong>How it's calculated (Simplified):</strong>
+    <p>We project your account growth from your current age until 55. The calculation assumes:</p>
+    <ul>
+        <li>Your salary grows annually by your specified percentage.</li>
+        <li>New savings are distributed into SA and OA based on standard rates.</li>
+        <li>At age 55, we first move your SA balance into the RA (up to the FRS limit).</li>
+        <li>If there's still a gap to reach the FRS, it is taken from your OA.</li>
+    </ul>
+</div>
+        </div>
+    </div>
+
+    <script>
+        function calculateRA() {
+            const oaBase = parseFloat(document.getElementById('oa').value) || 0;
+            const saBase = parseFloat(document.getElementById('sa').value) || 0;
+            const frs = parseFloat(document.getElementById('frs').value) || 220400;
+            const age = parseInt(document.getElementById('age').value) || 0;
+            const increment = (parseFloat(document.getElementById('increment').value) || 0) / 100;
+            
+            // Step 1: Project growth from current age to 55
+            let projectedOa = oaBase;
+            let projectedSa = saBase;
+            let yearsToWork = Math.max(0, 55 - age);
+            let currentSalary = parseFloat(document.getElementById('salary').value) || 0;
+
+            if (yearsToWork > 0) {
+                const months = yearsToWork * 12;
+                for (let i = 0; i < months; i++) {
+                    // Apply annual increment every 12 months
+                    if (i > 0 && i % 12 === 0) {
+                        currentSalary *= (1 + increment);
+                    }
+                    const monthlyContribution = currentSalary * 0.342;
+                    
+                    // Apply annual interest rates (OA: 2.5%, SA: 4%)
+                    projectedOa += projectedOa * (0.025 / 12);
+                    projectedSa += projectedSa * (0.04 / 12);
+                    
+                    let oa_share = 0.6; 
+                    let sa_share = 0.15;
+                    
+                    projectedOa += monthlyContribution * oa_share;
+                    projectedSa += monthlyContribution * sa_share;;
+                }
+            }
+
+            // Step 2: Apply transition rules at age 55
+            const actualSaToRa = Math.min(projectedSa, frs);
+            const oaToRa = Math.min(projectedOa, Math.max(0, frs - actualSaToRa));
+            
+            const raTotal = actualSaToRa + oaToRa;
+            const remainingOa = projectedOa - oaToRa;
+
+            document.getElementById('resSaGrowth').innerText = '$' + projectedSa.toLocaleString();
+            document.getElementById('resOaGrowth').innerText = '$' + projectedOa.toLocaleString();
+            document.getElementById('resRa').innerText = '$' + raTotal.toLocaleString();
+            document.getElementById('resOa').innerText = '$' + remainingOa.toLocaleString();
+            document.getElementById('results').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
